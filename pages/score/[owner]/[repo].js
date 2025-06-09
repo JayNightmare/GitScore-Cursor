@@ -1,105 +1,63 @@
 /**
  * Dynamic page for displaying repository scores
- * Uses static generation for initial repos and client-side fetching for new ones
+ * Uses client-side data fetching for all repositories
  */
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import CountUp from 'react-countup';
 import Head from 'next/head';
-import { getRepositoryScore } from '../../../lib/staticData';
 
-// List of repositories to pre-generate
-const POPULAR_REPOS = [
-  { owner: 'vercel', repo: 'next.js' },
-  { owner: 'facebook', repo: 'react' },
-  { owner: 'tailwindlabs', repo: 'tailwindcss' },
-  { owner: 'microsoft', repo: 'vscode' },
-  { owner: 'github', repo: 'docs' },
-];
-
-export async function getStaticProps({ params }) {
-  const { owner, repo } = params;
-  
-  // Only pre-generate scores for popular repos
-  const isPopularRepo = POPULAR_REPOS.some(
-    r => r.owner === owner && r.repo === repo
-  );
-
-  if (!isPopularRepo) {
-    return {
-      props: {
-        owner,
-        repo,
-        score: null,
-        isPopularRepo: false,
-      },
-    };
-  }
-
-  const score = await getRepositoryScore(owner, repo);
-  return {
-    props: {
-      owner,
-      repo,
-      score,
-      isPopularRepo: true,
-    },
-  };
-}
-
-export async function getStaticPaths() {
-  return {
-    paths: POPULAR_REPOS.map(({ owner, repo }) => ({
-      params: { owner, repo },
-    })),
-    fallback: false, // No fallback for static export
-  };
-}
-
-export default function ScorePage({ owner, repo, score: initialScore, isPopularRepo }) {
+export default function ScorePage() {
   const router = useRouter();
-  const [score, setScore] = useState(initialScore);
-  const [loading, setLoading] = useState(!isPopularRepo);
+  const { owner, repo } = router.query;
+  const [score, setScore] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!isPopularRepo) {
-      // For non-popular repos, fetch the score client-side
-      const fetchScore = async () => {
-        try {
-          const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`);
-          if (!response.ok) throw new Error('Repository not found');
-          
-          // Basic scoring for non-pre-generated repos
-          const repoData = await response.json();
-          const basicScore = {
-            score: Math.min(
-              (repoData.stargazers_count / 100) +
-              (repoData.forks_count / 50) +
-              (repoData.has_issues ? 2 : 0) +
-              (repoData.has_wiki ? 1 : 0) +
-              (repoData.has_pages ? 1 : 0),
-              10
-            ),
-            breakdown: {
-              stars: { score: Math.min(repoData.stargazers_count / 100, 10), weight: 1 },
-              forks: { score: Math.min(repoData.forks_count / 50, 10), weight: 0.8 },
-              issues: { score: repoData.has_issues ? 10 : 0, weight: 0.5 },
-              wiki: { score: repoData.has_wiki ? 10 : 0, weight: 0.3 },
-              pages: { score: repoData.has_pages ? 10 : 0, weight: 0.3 },
-            },
-          };
-          setScore(basicScore);
-        } catch (err) {
-          setError(err.message);
-        } finally {
-          setLoading(false);
-        }
-      };
+    if (!owner || !repo) return;
 
-      fetchScore();
-    }
-  }, [owner, repo, isPopularRepo]);
+    const fetchScore = async () => {
+      try {
+        // Fetch repository data from GitHub REST API
+        const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`);
+        if (!response.ok) throw new Error('Repository not found');
+        
+        const repoData = await response.json();
+
+        // Calculate score based on available metrics
+        const score = {
+          score: Math.min(
+            (repoData.stargazers_count / 100) +
+            (repoData.forks_count / 50) +
+            (repoData.has_issues ? 2 : 0) +
+            (repoData.has_wiki ? 1 : 0) +
+            (repoData.has_pages ? 1 : 0) +
+            (repoData.license ? 1.5 : 0) +
+            (repoData.description ? 1 : 0),
+            10
+          ),
+          breakdown: {
+            stars: { score: Math.min(repoData.stargazers_count / 100, 10), weight: 1 },
+            forks: { score: Math.min(repoData.forks_count / 50, 10), weight: 0.8 },
+            issues: { score: repoData.has_issues ? 10 : 0, weight: 0.5 },
+            wiki: { score: repoData.has_wiki ? 10 : 0, weight: 0.3 },
+            pages: { score: repoData.has_pages ? 10 : 0, weight: 0.3 },
+            license: { score: repoData.license ? 10 : 0, weight: 0.5 },
+            description: { score: repoData.description ? 10 : 0, weight: 0.3 },
+          },
+        };
+
+        setScore(score);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchScore();
+  }, [owner, repo]);
 
   if (loading) {
     return (

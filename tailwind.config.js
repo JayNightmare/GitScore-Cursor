@@ -10,10 +10,15 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#2563eb',
+        primary: {
+          DEFAULT: '#2563eb',
+          dark: '#1d4ed8',
+        },
         secondary: '#475569',
       },
     },
   },
-  plugins: [],
+  plugins: [
+    require('@tailwindcss/forms'),
+  ],
 } 

@@ -3,15 +3,15 @@
  * Displays search form and repository score card
  */
 import { useState } from 'react';
-import CountUp from 'react-countup';
+import { useRouter } from 'next/router';
 import Head from 'next/head';
 
 export default function Home() {
   const [owner, setOwner] = useState('');
   const [repo, setRepo] = useState('');
-  const [score, setScore] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const router = useRouter();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -19,8 +19,8 @@ export default function Home() {
     setError(null);
 
     try {
-      // Redirect to the static page for this repository
-      window.location.href = `/score/${owner}/${repo}`;
+      // Use Next.js router for client-side navigation
+      await router.push(`/score/${owner}/${repo}`);
     } catch (err) {
       setError(err.message);
       setLoading(false);
@@ -70,7 +70,7 @@ export default function Home() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary text-white py-2 px-4 rounded-md hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+              className="w-full bg-primary text-white py-2 px-4 rounded-md hover:bg-primary-dark focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-50"
             >
               {loading ? 'Calculating...' : 'Calculate Score'}
             </button>
